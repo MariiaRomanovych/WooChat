@@ -2,6 +2,9 @@ package ua.woochat.client.view;
 
 import java.awt.*;
 
+/**
+ * Class describe a color properties
+ */
 public class WindowProperties {
 
     private Color bgColor;

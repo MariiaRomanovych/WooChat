@@ -1,5 +1,7 @@
 package ua.woochat.app;
 
+import org.apache.log4j.Logger;
+
 import javax.xml.bind.annotation.XmlElement;
 import javax.xml.bind.annotation.XmlElementWrapper;
 import javax.xml.bind.annotation.XmlRootElement;
@@ -7,7 +9,6 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.util.Date;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
@@ -16,19 +17,15 @@ public class User implements UsersAndGroups {
     @XmlElement
     private int id;
     @XmlElement
-    public String login; //change to private later
+    private String login;
     @XmlElement
     private String password;
+    private final static Logger logger = Logger.getLogger(User.class);
 
-    private enum Gender {
-        MALE, FEMALE
-    }
-
-    private Gender gender;
     private boolean admin;
     private boolean isBanned;
-    private Date lastActivity = new Date();
-    public long timetoUnban;
+    private long lastActivity;
+    private long timetoUnban;
 
     @XmlElementWrapper(name="ListGroup", nillable = true)
     @XmlElement(name="group")
@@ -43,20 +40,27 @@ public class User implements UsersAndGroups {
     public User() {
     }
 
+    /**
+     * Method saves user in XML file
+     */
     public void saveUser() {
         HandleXml handleXml = new HandleXml();
-        String path = new File("").getAbsolutePath();
-        File file = new File(path + "/Server/src/main/resources/User/" + this.getId() + ".xml");
+        File file = new File(  "User" + File.separator + this.getId() + ".xml");
+
+        File directory = new File("User");
+        if (!directory.exists()){
+            directory.mkdir();
+        }
         try {
             file.createNewFile();
         } catch (IOException e) {
-            e.printStackTrace();
+            logger.error("File has not been created ", e);
         }
         try {
             FileOutputStream stream = new FileOutputStream(file);
             handleXml.marshalling(User.class, this, stream);
         } catch (FileNotFoundException e) {
-            e.printStackTrace();
+            logger.error("File not found exceptions ", e);
         }
 
     }
@@ -74,30 +78,13 @@ public class User implements UsersAndGroups {
         return password;
     }
 
-    public Gender getGender() {
-        return gender;
-    }
-
-    public void setGender(Gender gender) {
-        this.gender = gender;
-    }
-
     public boolean isAdmin() {
         return admin;
     }
 
     public void setAdmin(boolean admin) {
         this.admin = admin;
-        admin = true;  //admin по умолчанию false, помоему здесь надо присвоить true
-    }
-
-    public boolean isBan() {
-        return isBanned;
-    }
-
-    public void setBan(boolean ban) {
-        this.isBanned = ban;
-        //saveUser();
+        saveUser();
     }
 
     public void addGroup(String groupID) {
@@ -115,17 +102,19 @@ public class User implements UsersAndGroups {
         return groups;
     }
 
-    public Date getLastActivity() {
-        return lastActivity;
-    }
-
-    public void setLastActivity(Date lastActivity) {
-        this.lastActivity = lastActivity;
-    }
-
     @XmlElementWrapper(nillable = true)
     public void setGroups(Set<String> groups) {
         this.groups = groups;
+        saveUser();
+    }
+
+    public boolean isBan() {
+        return isBanned;
+    }
+
+    public void setBan(boolean ban) {
+        this.isBanned = ban;
+        saveUser();
     }
 
     /**
@@ -133,32 +122,47 @@ public class User implements UsersAndGroups {
      * @param interval in minutes;
      */
     public void setBanInterval(int interval) {
+        int minute = 60000;
+        int minutesInMillisecs = minute;
         setBan(true);
-        timetoUnban = System.currentTimeMillis() + interval * 60000;
-        //saveUser();
+        timetoUnban = System.currentTimeMillis() + interval * minutesInMillisecs;
+        saveUser();
     }
 
     public void unban() {
         timetoUnban = 0;
         setBan(false);
         //saveUser();
+        saveUser();
     }
 
-    public boolean isUnbanned() {
-        if (!isBan()) return true;
+    public boolean readyForUnban() {
         if (timetoUnban <= System.currentTimeMillis()) {
             unban();
             return true;
         } else return false;
     }
 
+    public long getLastActivity() {
+        return lastActivity;
+    }
+
+    public void setLastActivity(long lastActivity) {
+        this.lastActivity = lastActivity;
+        saveUser();
+    }
+
+    /**
+     * Method user to String
+     * @return String for user
+     */
     @Override
     public String toString() {
         return "User{" +
                 "id=" + id +
                 ", login='" + login + '\'' +
                 ", password='" + password + '\'' +
-                ", gender=" + gender +
+                //", gender=" + gender +
                 ", admin=" + admin +
                 ", isBanned=" + isBanned +
                 ", groups=" + groups +
