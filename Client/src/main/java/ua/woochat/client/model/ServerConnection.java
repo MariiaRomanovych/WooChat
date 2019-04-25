@@ -13,6 +13,10 @@ import java.io.IOException;
 import java.net.Socket;
 import java.text.SimpleDateFormat;
 import java.util.*;
+import java.util.Timer;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 /**
  * class describes methods for processing transfers and receiving requests to the server
@@ -26,11 +30,13 @@ public class ServerConnection implements ConnectionAgent {
     private int tabCount;
     private HashMap<String, ArrayList<String>> onlineState = new HashMap<>();
     private boolean renderComplete;
+    private boolean connectionStatus;
 
     private final static Logger logger = Logger.getLogger(ServerConnection.class);
+    private final ScheduledExecutorService ses = Executors.newSingleThreadScheduledExecutor();
 
     public ServerConnection(LoginFormListener loginFormListener){
-
+        ConfigClient.getConfigClient();
         this.loginFormListener = loginFormListener;
         onlineState.put("group000", new ArrayList<>());
 
@@ -38,7 +44,7 @@ public class ServerConnection implements ConnectionAgent {
             Socket socket = new Socket(ConfigClient.getServerIP(), ConfigClient.getPortConnection());
             this.connection = new Connection(this, socket);
         } catch (Exception e) {
-            e.printStackTrace();
+            logger.error("new Socket error ", e);
         }
     }
 
@@ -76,18 +82,21 @@ public class ServerConnection implements ConnectionAgent {
         try {
             message = HandleXml.unMarshallingMessage(text);
         } catch (JAXBException e) {
-            logger.error("unMarshallingMessage " + e);
+            logger.error("unMarshallingMessage error " + e);
         }
 
         /* Creating account or authorisation */
-        if ((message.getType() == Message.REGISTER_TYPE) || (message.getType() == Message.SINGIN_TYPE)) {
+        if ((message.getType() == Message.REGISTER_TYPE) || (message.getType() == Message.SIGNIN_TYPE)) {
             if (message.getMessage().startsWith("true")) {
                 int chattingPort = Integer.parseInt(message.getMessage().substring(message.getMessage().indexOf('=') + 1));
                 moveToChattingSocket(chattingPort);
 
                 connection.setUser(new User(message.getLogin(), message.getPassword()));
                 loginFormListener.getLoginForm().getLoginWindow().setVisible(false);
-                chatWindow(connection.getUser().getLogin(), this);
+
+                String name = connection.getUser().getLogin();
+
+                chatWindow(name, this);
                 chatForm.addNewTab(tabCount++, "WooChat", "group000", false);
 
                 message.setType(Message.UPDATE_USERS_TYPE);
@@ -95,6 +104,7 @@ public class ServerConnection implements ConnectionAgent {
                 message.setGroupTitle("WooChat");
 
                 sendToServer(HandleXml.marshallingWriter(Message.class, message));
+                serverPingStart();
 
             } else if (message.getMessage().startsWith("update")) {
                 logger.info("update");
@@ -106,7 +116,7 @@ public class ServerConnection implements ConnectionAgent {
                     if (!entry.getGroupID().equals("group000")) {
                         chatForm.addNewTab(tabCount++, entry.getGroupName(), entry.getGroupID(), true);
                         i = chatForm.getConversationPanel().getSelectedIndex();
-                        historyMessages =  entry.getQueue();
+                        historyMessages = entry.getQueue();
                         if (historyMessages != null) {
                             for (HistoryMessage entry1 : historyMessages) {
                                 sendToChat(entry1.getLogin(), entry1.getMessage(), i, entry1.getTime());
@@ -116,20 +126,24 @@ public class ServerConnection implements ConnectionAgent {
                 }
 
             } else {
-                if (message.getType() == Message.SINGIN_TYPE) {
+                if (message.getType() == Message.REGISTER_TYPE) {
+                    connectionStatus = false;
                     loginFormListener.getLoginForm().getLoginWindow().setEnabled(false);
                     new MessageView("User with the same name already exists!",
-                            loginFormListener.getLoginForm().getLoginWindow());
+                            loginFormListener.getLoginForm().getLoginWindow(),false);
                 } else {
                     loginFormListener.getLoginForm().getLoginWindow().setEnabled(false);
                     new MessageView("Invalid username or password!",
-                            loginFormListener.getLoginForm().getLoginWindow());
+                            loginFormListener.getLoginForm().getLoginWindow(),false);
                 }
             }
         }
 
         /* User list update */
         else if (message.getType() == Message.UPDATE_USERS_TYPE) {
+            Message.administrator = message.getAdminName();
+
+            connectionStatus = false;
             if (message.getGroupID().equals("group000")){
                 onlineState.put("group000",message.getGroupList());
             }else{
@@ -141,6 +155,7 @@ public class ServerConnection implements ConnectionAgent {
 
         /* Text message received */
         else if (message.getType() == Message.CHATTING_TYPE) {
+            connectionStatus = false;
             for (int i = 0; i < tabCount; i++){
                 if (chatForm.getConversationPanel().getTitleAt(i).equals(message.getGroupID())) {
                     logger.debug("Found ID: " + message.getGroupID());
@@ -151,6 +166,7 @@ public class ServerConnection implements ConnectionAgent {
 
         /* Server response to creating a private chat */
         else if (message.getType() == Message.PRIVATE_CHAT_TYPE) {
+            connectionStatus = false;
             ArrayList<String> currentGroupList = message.getGroupList();
             String result = currentGroupList.get(currentGroupList.size() - 1);
             if (result.equals(connection.getUser().getLogin())) {
@@ -166,6 +182,7 @@ public class ServerConnection implements ConnectionAgent {
 
         /* Adding user to private chat */
         else if (message.getType() == Message.PRIVATE_GROUP_TYPE) {
+            connectionStatus = false;
             logger.debug("List of users in private group: " + message.getGroupList());
             chatForm.addNewTab(tabCount++, message.getGroupTitle(), message.getGroupID(),true);
             onlineState.put(message.getGroupID(), message.getGroupList());
@@ -174,6 +191,7 @@ public class ServerConnection implements ConnectionAgent {
 
         /* Getting a list of users who are not in a current group */
         else if (message.getType() == Message.UNIQUE_ONLINE_USERS_TYPE) {
+            connectionStatus = false;
             ArrayList<String> onlineUsersWithoutPrivateGroups = message.getGroupList();
 
             for (String entry: onlineUsersWithoutPrivateGroups) {
@@ -184,19 +202,24 @@ public class ServerConnection implements ConnectionAgent {
 
         /* Chat disconnecting response */
         else if (message.getType() == Message.EXIT_TYPE) {
+            connectionStatus = false;
             logger.debug("Login of user who disconnect: "  + message.getLogin());
+
+            Message.administrator = message.getAdminName();
             removeCurrentUserFromOnline(message.getLogin());
         }
 
         /* Response of tab rename */
         else if (message.getType() == Message.TAB_RENAME_TYPE) {
+            connectionStatus = false;
             tabRename(message.getGroupTitle(), message.getGroupID());
-            onlineState.put(message.getGroupID(),message.getGroupList());
+            onlineState.put(message.getGroupID(), message.getGroupList());
             reNewAllTabs();
         }
 
         /* User's kick response */
         else if (message.getType() == Message.KICK_TYPE) {
+            connectionStatus = false;
             for (int i = 0; i < tabCount; i++){
                 String tabTitle = chatForm.getConversationPanel().getTitleAt(i);
                 if (tabTitle.equals(message.getGroupID())){
@@ -209,19 +232,26 @@ public class ServerConnection implements ConnectionAgent {
 
         /* User's ban response */
         else if (message.getType() == Message.BAN_TYPE) {
+            connectionStatus = false;
             if (message.isBanned()) {
-                new MessageView(message.getMessage(), chatForm.getChatForm());
+                new MessageView(message.getMessage(), chatForm.getChatForm(),false);
                 setButtonsActive(false);
             } else {
                 setButtonsActive(true);
             }
         }
 
-        /*User's chat disconnect response*/
+        /*User's chat disconnect request*/
         else if (message.getType() == Message.QUIT_TYPE) {
+            connectionStatus = false;
             disconnectRequest();
             }
+
+        /*Server status check*/
+        else if (message.getType() == Message.PING_TYPE) {
+            connectionStatus = false;
         }
+    }
 
     /**
      * Method sets the buttons enable
@@ -238,7 +268,7 @@ public class ServerConnection implements ConnectionAgent {
      * @param login login of removed user
      */
     private void removeCurrentUserFromOnline(String login) {
-        ArrayList<String> temp = null;
+        ArrayList<String> temp;
         for(Map.Entry<String, ArrayList<String>> entry: onlineState.entrySet()) {
             temp = entry.getValue();
             logger.debug("Find user in group:" + entry.getKey());
@@ -275,6 +305,11 @@ public class ServerConnection implements ConnectionAgent {
      * Method renew online list of all tabs
      */
     private void reNewAllTabs(){
+        if (!("").equals(Message.administrator) && (Message.administrator != null)){
+            chatForm.getAdminName().setText("Admin: " + Message.administrator);
+        }else {
+            chatForm.getAdminName().setText("Admin: offline");
+        }
         for (int i = 0; i < tabCount; i++) {
             String tabTitle = chatForm.getConversationPanel().getTitleAt(i);
             for(Map.Entry<String, ArrayList<String>> entry: onlineState.entrySet()){
@@ -305,7 +340,7 @@ public class ServerConnection implements ConnectionAgent {
             connection.setSocket(socketChatting);
             logger.debug("Client has changed connection socket to chatting socket:" + socketChatting.getInetAddress() + ":" + socketChatting.getPort());
         } catch (IOException e) {
-            logger.error("Error client socket creation" + e);
+            logger.error("Error client socket creation", e);
         }
     }
 
@@ -351,10 +386,9 @@ public class ServerConnection implements ConnectionAgent {
      */
     public void changeTabReNewOnlineList(int index){
         logger.debug("Update a list from a groupID tab: "  + chatForm.getConversationPanel().getTitleAt(index));
-        if (renderComplete) {
-            if (onlineState.get(chatForm.getConversationPanel().getTitleAt(index))!=null) {
-                reNewOnlineList(onlineState.get(chatForm.getConversationPanel().getTitleAt(index)));
-            }
+        if ((renderComplete)
+                && (onlineState.get(chatForm.getConversationPanel().getTitleAt(index))!= null)) {
+            reNewOnlineList(onlineState.get(chatForm.getConversationPanel().getTitleAt(index)));
         }
     }
 
@@ -451,6 +485,36 @@ public class ServerConnection implements ConnectionAgent {
             }
         }
         return false;
+    }
+
+    private void serverPingStart(){
+        logger.debug("Ping started....");
+        ses.scheduleWithFixedDelay(new Runnable() {
+            @Override
+            public void run() {
+                logger.debug("CLIENT: Server ping");
+                Message msg = new Message(Message.PING_TYPE, "");
+                sendToServer(HandleXml.marshallingWriter(Message.class, msg));
+                connectionStatus = true;
+                connectionCheck();
+            }
+        }, 0, 1, TimeUnit.MINUTES);
+    }
+
+    /**
+     * method checks server response status
+     */
+    public void connectionCheck(){
+        if (!connectionStatus){connectionStatus = true;}
+        Timer timer = new Timer();
+        timer.schedule(new TimerTask() {
+            @Override
+            public void run() {
+                if (connectionStatus){
+                    new MessageView("Server connection lost..", chatForm.getChatForm(), true);
+                }
+            }
+        }, 30000000);
     }
 }
 

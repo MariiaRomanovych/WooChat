@@ -9,29 +9,30 @@ import java.util.Set;
 
 @XmlRootElement
 public class Message implements Serializable {
+    public final static int REGISTER_TYPE = 0;  // сделать через enum?
+    public final static int SIGNIN_TYPE = 1;
+    public final static int CHATTING_TYPE = 2;
+    public final static int UPDATE_USERS_TYPE = 3;
+    public final static int PRIVATE_CHAT_TYPE = 6;
+    public final static int PRIVATE_GROUP_TYPE = 7;
+    public final static int UNIQUE_ONLINE_USERS_TYPE = 8;
+    public final static int LEAVE_GROUP_TYPE = 9;
+    public final static int PING_TYPE = 10;
+    public final static int EXIT_TYPE = 11;
+    public final static int TAB_RENAME_TYPE = 12;
+    public final static int KICK_TYPE = 13;
+    public final static int BAN_TYPE = 99;
+    public final static int QUIT_TYPE = 23;
     private String login;
+    public static String administrator;
+    private String adminName;
     @XmlElement
     private String password;
-    private String onlineUsers; //удалить?
     private String groupID;
     private String groupTitle;
     private boolean isBanned;
 
     private int type;
-    public static int REGISTER_TYPE = 0;  // сделать через enum?
-    public static int SINGIN_TYPE = 1;
-    public static int CHATTING_TYPE = 2;
-    public static int UPDATE_USERS_TYPE = 3;
-    public static int PRIVATE_CHAT_TYPE = 6;
-    public static int PRIVATE_GROUP_TYPE = 7;
-    public static int UNIQUE_ONLINE_USERS_TYPE = 8;
-    public static int LEAVE_GROUP_TYPE = 9;
-    public static int EXIT_TYPE = 11;
-    public static int TAB_RENAME_TYPE = 12;
-    public static int KICK_TYPE = 13;
-    public static int BAN_TYPE = 99;
-    public static int QUIT_TYPE = 23;
-
     private String message;
     private ArrayList<String> groupList = new ArrayList<>();
     private Set<Group> groupListUser = new HashSet<>();
@@ -57,10 +58,10 @@ public class Message implements Serializable {
         this.message = message;
     }
 
-    public Message(String login, int type, String message) {
+    public Message(int type, String login, String groupID) {
         this.login = login;
         this.type = type;
-        this.message = message;
+        this.groupID = groupID;
     }
 
     @XmlElement
@@ -85,15 +86,6 @@ public class Message implements Serializable {
     public void setType(int type) {
         this.type = type;
     }
-
-    @XmlElement
-    public String getOnlineUsers() {
-        return onlineUsers;
-    }
-
-//    public void setOnlineUsers(String onlineUsers) {
-//        this.onlineUsers = onlineUsers;
-//    }
 
     public void setMessage(String message) {
         this.message = message;
@@ -145,5 +137,14 @@ public class Message implements Serializable {
 
     public void setGroupTitle(String groupTitle) {
         this.groupTitle = groupTitle;
+    }
+
+    public String getAdminName() {
+        return adminName;
+    }
+
+    @XmlElement
+    public void setAdminName(String admin) {
+        this.adminName = admin;
     }
 }

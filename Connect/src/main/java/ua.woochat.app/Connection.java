@@ -38,7 +38,7 @@ public class Connection implements Runnable {
             socketIn = new BufferedReader(new InputStreamReader(socket.getInputStream(), Charset.forName("UTF-8")));
             socketOut = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream(), Charset.forName("UTF-8")));
         } catch (IOException e) {
-            e.printStackTrace();
+            logger.error("IOException error ", e);
         }
     }
 
@@ -51,11 +51,11 @@ public class Connection implements Runnable {
             try {
                 if (socketIn.ready()) {
                     String text = socketIn.readLine();
-                    logger.debug("Message has been received from: " + socket.getInetAddress() + ":" + socket.getLocalPort() + socket.getPort());
+                    logger.debug("Message has been received from: " + socket.getInetAddress() + ":" + socket.getLocalPort() + " client's port: " + socket.getPort());
                     connectionAgent.receivedMessage(Connection.this, text.trim());
                 }
             } catch (IOException e) {
-                logger.error("Error with connection creation " + e);
+                logger.error("Error with connection creation ", e);
                 try {
                     Thread.sleep(1500);
                 } catch (InterruptedException e1) {
@@ -74,7 +74,7 @@ public class Connection implements Runnable {
             socketOut.write(text + "\r\n");
             socketOut.flush();
         } catch (IOException e) {
-            logger.error("Error with socket output stream" + e);
+            logger.error("Error with socket output stream", e);
             disconnect();
         }
     }
@@ -106,8 +106,4 @@ public class Connection implements Runnable {
         this.user = user;
     }
 
-    //    @Override
-//    public String toString() {
-//        return "user: \"" + user.getLogin() + "\"";
-//    }
 }

@@ -1,5 +1,7 @@
 package ua.woochat.app;
 
+import org.apache.log4j.Logger;
+
 import javax.xml.bind.annotation.XmlElement;
 import javax.xml.bind.annotation.XmlElementWrapper;
 import javax.xml.bind.annotation.XmlRootElement;
@@ -18,12 +20,8 @@ public class User implements UsersAndGroups {
     private String login;
     @XmlElement
     private String password;
+    private final static Logger logger = Logger.getLogger(User.class);
 
-//    private enum Gender {
-//        MALE, FEMALE
-//    }
-
-//    private Gender gender;
     private boolean admin;
     private boolean isBanned;
     private long lastActivity;
@@ -56,13 +54,13 @@ public class User implements UsersAndGroups {
         try {
             file.createNewFile();
         } catch (IOException e) {
-            e.printStackTrace();
+            logger.error("File has not been created ", e);
         }
         try {
             FileOutputStream stream = new FileOutputStream(file);
             handleXml.marshalling(User.class, this, stream);
         } catch (FileNotFoundException e) {
-            e.printStackTrace();
+            logger.error("File not found exceptions ", e);
         }
 
     }
@@ -80,20 +78,13 @@ public class User implements UsersAndGroups {
         return password;
     }
 
-//    public Gender getGender() {
-//        return gender;
-//    }
-//
-//    public void setGender(Gender gender) {
-//        this.gender = gender;
-//    }
-
     public boolean isAdmin() {
         return admin;
     }
 
     public void setAdmin(boolean admin) {
         this.admin = admin;
+        saveUser();
     }
 
     public void addGroup(String groupID) {
@@ -114,6 +105,7 @@ public class User implements UsersAndGroups {
     @XmlElementWrapper(nillable = true)
     public void setGroups(Set<String> groups) {
         this.groups = groups;
+        saveUser();
     }
 
     public boolean isBan() {
@@ -157,6 +149,7 @@ public class User implements UsersAndGroups {
 
     public void setLastActivity(long lastActivity) {
         this.lastActivity = lastActivity;
+        saveUser();
     }
 
     /**

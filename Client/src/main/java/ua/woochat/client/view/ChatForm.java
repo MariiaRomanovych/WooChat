@@ -1,10 +1,8 @@
 package ua.woochat.client.view;
 
 import org.apache.log4j.Logger;
-import ua.woochat.app.Message;
 import ua.woochat.client.listeners.ChatFormListener;
 import ua.woochat.client.model.ServerConnection;
-
 import javax.swing.*;
 import javax.swing.border.Border;
 import javax.swing.event.ChangeEvent;
@@ -34,6 +32,7 @@ public class ChatForm {
     private JScrollPane addUserScrollPane;
     private JList addUserList;
     private JLabel userOnlineLabel;
+    private JLabel adminName;
     private JButton sendButton;
     private JButton addUserBtn;
     private JTabbedPane conversationPanel;
@@ -43,7 +42,7 @@ public class ChatForm {
     private String user;
     private ChatFormListener chatListener;
 
-    final static Logger logger = Logger.getLogger(ServerConnection.class);
+    private final static Logger logger = Logger.getLogger(ServerConnection.class);
 
     public ChatForm(WindowProperties properties, WindowImages images, String user, ServerConnection serverConnection){
 
@@ -71,7 +70,6 @@ public class ChatForm {
             @Override
             public void windowClosing( WindowEvent e )
             {
-                logger.debug("Сработала кнопка \"закрыть приложение\"");
                 serverConnection.disconnectRequest();
             }
         } );
@@ -346,6 +344,8 @@ public class ChatForm {
         listContainer.setPreferredSize(new Dimension(182,400));
         userOnlineLabel = new JLabel();
         userOnlineLabel.setForeground(properties.getLabelTextColor());
+        adminName = new JLabel("Admin: offline");
+        adminName.setForeground(properties.getLabelTextColor());
         JLabel line = new JLabel();
         line.setPreferredSize(new Dimension(140,10));
         line.setIcon(images.getLine());
@@ -358,6 +358,7 @@ public class ChatForm {
         scrollPane.setBorder(border());
         listContainer.add(userOnlineLabel);
         listContainer.add(line);
+        listContainer.add(adminName);
         listContainer.add(scrollPane);
 
         /**
@@ -371,12 +372,11 @@ public class ChatForm {
                     String user1 = serverConnection.connection.getUser().getLogin();
                     String user2 = model.get(index);
 
-                    if (serverConnection.isChatFounded(user2)){
-                    }else{
-                        if (user1.equals(user2)){
-                            new MessageView("You can not create a dialogue with yourself", chatForm);
-                        }else {
-                            chatListener.privateGroupCreate(user1,user2);
+                    if (!serverConnection.isChatFounded(user2)) {
+                        if (user1.equals(user2)) {
+                            new MessageView("You can not create a dialogue with yourself", chatForm, false);
+                        } else {
+                            chatListener.privateGroupCreate(user1, user2);
                         }
                     }
                 }
@@ -447,6 +447,10 @@ public class ChatForm {
     private Border border() {
         return BorderFactory.createEmptyBorder(0, 0, 0, 0);
     }
+
+    public JLabel getAdminName() {
+        return adminName;
+    }
 }
 
     /**
@@ -455,7 +459,7 @@ public class ChatForm {
     class MyTabbedPaneUI extends javax.swing.plaf.basic.BasicTabbedPaneUI {
 
     private WindowProperties properties;
-    public MyTabbedPaneUI(WindowProperties properties){
+    MyTabbedPaneUI(WindowProperties properties){
         this.properties = properties;
     }
 
